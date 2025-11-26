@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel de Notícias Agrícolas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  <script>
+    window.__INITIAL_ARTICLES__ = {{ initial_articles | tojson | safe }};
+    window.__INITIAL_QUOTES__ = {{ initial_quotes | tojson | safe }};
+    window.__GENERATED_AT__ = "{{ generated_at.isoformat() if generated_at else '' }}";
+  </script>
+</head>
+
+<body>
+  <div class="ticker-bar">
+    <div class="ticker-track" id="ticker-track"></div>
+  </div>
+  <div class="background-gradient"></div>
+  <header class="hero-section">
+    <div class="hero-card glass-surface">
+      <div class="hero-icon">
+        <span class="hero-emoji">📰</span>
+      </div>
+      <div class="hero-copy">
+        <p class="eyebrow">Painel de Notícias Agrícolas</p>
+        <h1>Resumo das principais notícias da semana</h1>
+        <p class="lead">
+          Monitoramento das últimas notícias sobre Defensivos,
+          Fertilizantes, Irrigação, Soja, Milho e Café considerando os
+          últimos 7 dias.
+        </p>
+        <p class="timestamp">
+          Última atualização:
+          <span id="last-update">--</span> - atualização automática de 15 em 15 minutos
+        </p>
+      </div>
+      <div class="hero-actions">
+        <div class="hero-buttons">
+          <button id="email-btn" class="btn secondary" style="display: none;">
+            Gerar HTML para E-mail
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="cards-header">
+      <div class="cards-title">
+        <span class="icon-badge">📊</span>
+        <div>
+          <h2>Resumo das Principais Notícias da Semana</h2>
+        </div>
+      </div>
+    </section>
+
+    <section id="cards-grid" class="cards-grid">
+      <div class="empty-state glass-surface" id="empty-state">
+        <p>Carregando notícias...</p>
+      </div>
+    </section>
+
+    <section class="sources-line">
+      <p>
+        Fontes:
+        <a href="https://www.noticiasagricolas.com.br" target="_blank" rel="noreferrer">Notícias Agrícolas</a>,
+        <a href="https://globalcropprotection.com/" target="_blank" rel="noreferrer">Global Crop Protection</a> e
+        <a href="https://www.agrolink.com.br/" target="_blank" rel="noreferrer">Agrolink</a>.
+      </p>
+    </section>
+
+    
+  </main>
+
+  
+
+  <template id="card-template">
+    <article class="news-card glass-surface">
+      <div class="card-image-wrapper">
+        <img src="" alt="" loading="lazy" />
+        <span class="card-topic"></span>
+      </div>
+      <div class="card-body">
+        <p class="card-date"></p>
+        <p class="card-source"></p>
+        <h3></h3>
+        <p class="card-summary"></p>
+      </div>
+      <div class="card-footer">
+        <a class="btn card-link" target="_blank" rel="noreferrer">
+          Ler notícia completa ↗
+        </a>
+      </div>
+    </article>
+  </template>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+</body>
+
+</html>
