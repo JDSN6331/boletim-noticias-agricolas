@@ -868,7 +868,16 @@ def fetch_quotes() -> List[Quote]:
                 items.append(extract_from_heading_in(soup, "Café", "Café", "cafe", "R$/sc", "Cepea/Esalq"))
         except Exception:
             items.append(extract_from_heading_in(soup, "Café", "Café", "cafe", "R$/sc", "Cepea/Esalq"))
-        items.append(extract_from_heading_in(soup, "Indicador do Milho Esalq/B3", "Milho", "milho", "R$/sc 60 kg", "ESALQ/B3"))
+        m_val_quote = extract_from_heading_in(soup, "Indicador do Milho Esalq/B3", "Milho", "milho", "R$/sc 60 kg", "ESALQ/B3")
+        if not m_val_quote.value:
+            try:
+                rm = session.get(f"{BASE_URL}/cotacoes/milho", timeout=15)
+                if rm.status_code == 200:
+                    msoup = BeautifulSoup(rm.text, "lxml")
+                    m_val_quote = extract_from_heading_in(msoup, "Indicador do Milho Esalq/B3", "Milho", "milho", "R$/sc 60 kg", "ESALQ/B3")
+            except Exception:
+                pass
+        items.append(m_val_quote)
         s_val_quote = extract_from_heading_in(soup, "Indicador da Soja ESALQ/B3 - Paranaguá", "Soja", "soja", "R$/sc", "ESALQ/B3 - Paranaguá")
         if not s_val_quote.value:
             try:
