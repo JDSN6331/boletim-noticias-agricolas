@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.Python
+env/
+venv/
+.venv/
+pip-wheel-metadata/
+*.egg-info/
+.DS_Store
+Thumbs.db
+.env
+/.trae/
+node_modules/
+
