@@ -13,6 +13,11 @@ const sourcesAwaitEl = document.getElementById("sources-await");
 const DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
   dateStyle: "short",
 });
+const DATETIME_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: "America/Sao_Paulo",
+});
 
 function renderCards(articles) {
   cardsGrid.innerHTML = "";
@@ -60,7 +65,7 @@ function formatDateLabel(dateStr) {
 
 function updateTimestamp(isoString) {
   if (!isoString) return;
-  lastUpdateEl.textContent = DATE_FORMATTER.format(new Date(isoString));
+  lastUpdateEl.textContent = DATETIME_FORMATTER.format(new Date(isoString));
 }
 
 function renderTicker(quotes) {
