@@ -717,6 +717,10 @@ class AgrolinkScraper:
     BASES = [
         "https://www.agrolink.com.br/",
         "https://www.agrolink.com.br/noticias/",
+        "https://www.agrolink.com.br/culturas/soja/noticias/",
+        "https://www.agrolink.com.br/culturas/milho/noticias/",
+        "https://www.agrolink.com.br/culturas/cafe/noticias/",
+        "https://www.agrolink.com.br/agricultura/noticia/",
     ]
 
     def __init__(self) -> None:
