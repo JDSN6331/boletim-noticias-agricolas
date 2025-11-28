@@ -143,6 +143,19 @@ def is_disallowed_agrolink(url: str, title: str = "") -> bool:
         return True
     return False
 
+
+def looks_like_article_image(url: str) -> bool:
+    u = (url or "").lower()
+    if not u:
+        return False
+    bad = [
+        "logo", "favicon", "sprite", "banner", "ads", "anuncio", "share", "social",
+    ]
+    if any(b in u for b in bad):
+        return False
+    ok = ["/uploads/", "/files/", "/noticias/", "/wp-content/uploads/"]
+    return any(k in u for k in ok) or u.endswith((".jpg", ".jpeg", ".png", ".webp"))
+
 DATE_HEADING_PATTERN = re.compile(r"\d{2}/\d{2}/\d{4}")
 DATE_TIME_PATTERN = re.compile(r"(\d{2}/\d{2}/\d{4}).*?(\d{2}:\d{2})")
 
@@ -786,18 +799,43 @@ class AgrolinkScraper:
         title_el = soup.find("h1") or soup.find("h2") or soup.title
         if not title_el:
             return None
-        og_img = soup.find("meta", property="og:image")
-        hero_image = og_img.get("content") if og_img and og_img.get("content") else ""
-        if not hero_image:
-            img_el = soup.select_one("article img, .post img, .conteudo img, .content img") or soup.find("img")
-            if img_el:
-                hero_image = (
-                    img_el.get("src")
-                    or img_el.get("data-src")
-                    or img_el.get("data-original")
-                    or img_el.get("data-lazy-src")
-                    or ""
-                )
+        def extract_hero_image() -> str:
+            og_img = soup.find("meta", property="og:image")
+            if og_img and og_img.get("content") and looks_like_article_image(og_img.get("content")):
+                return og_img.get("content")
+            # Busca imagens no corpo do artigo e escolhe a primeira válida
+            containers = [
+                soup.select_one(".content"),
+                soup.select_one(".conteudo"),
+                soup.select_one(".materia"),
+                soup.select_one("article"),
+                soup.select_one("main"),
+            ]
+            for container in containers:
+                if not container:
+                    continue
+                for img_el in container.find_all("img"):
+                    cand = (
+                        img_el.get("src")
+                        or img_el.get("data-src")
+                        or img_el.get("data-original")
+                        or img_el.get("data-lazy-src")
+                        or ""
+                    )
+                    if looks_like_article_image(cand):
+                        return cand
+            # Fallback genérico
+            any_img = soup.find("img")
+            cand = (
+                any_img.get("src")
+                or any_img.get("data-src")
+                or any_img.get("data-original")
+                or any_img.get("data-lazy-src")
+                or ""
+            ) if any_img else ""
+            return cand if looks_like_article_image(cand) else ""
+
+        hero_image = extract_hero_image()
         if not hero_image:
             return None
         summary = None
@@ -809,9 +847,15 @@ class AgrolinkScraper:
             tw_desc.get("content") if tw_desc and tw_desc.get("content") else "",
             meta_desc.get("content") if meta_desc and meta_desc.get("content") else "",
         ]
+        def looks_like_nav_text(c: str) -> bool:
+            low = (c or "").lower()
+            nav_tokens = ["agropecuária", "agropecuaria", "notícias", "noticias", "cotações", "cotacoes", "defensivos", "classificados", "tempo", "eventos"]
+            commas = low.count(",")
+            return commas >= 3 and sum(1 for t in nav_tokens if t in low) >= 3
+
         for cand in meta_candidates:
             c = (cand or "").strip()
-            if c and len(c) > 40:
+            if c and len(c) > 60 and not looks_like_nav_text(c):
                 summary = c
                 break
         if not summary:
@@ -826,7 +870,7 @@ class AgrolinkScraper:
                 low = txt.lower()
                 if any(b in low for b in bad):
                     continue
-                if len(txt) > 60:
+                if len(txt) > 60 and ("." in txt or ";" in txt or "!" in txt or "?" in txt):
                     summary = txt
                     break
             if not summary:
