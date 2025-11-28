@@ -135,7 +135,13 @@ def is_disallowed_agrolink(url: str, title: str = "") -> bool:
         "cotacao", "cotacoes", "cotações",
         "podcast", "video", "vídeo", "galeria", "classificado", "classificados",
     ]
-    return any(b in u or b in t for b in bad)
+    if any(b in u or b in t for b in bad):
+        return True
+    generic_titles = {"noticias", "notícia", "noticia", "agricultura", "agronegocio", "conteudo", "content"}
+    if t in generic_titles or len(t) < 12:
+        # Evita títulos genéricos ou muito curtos que costumam ser páginas índice
+        return True
+    return False
 
 DATE_HEADING_PATTERN = re.compile(r"\d{2}/\d{2}/\d{4}")
 DATE_TIME_PATTERN = re.compile(r"(\d{2}/\d{2}/\d{4}).*?(\d{2}:\d{2})")
@@ -749,6 +755,9 @@ class AgrolinkScraper:
                     continue
                 if not any(p in full for p in ["/noticia", "/noticias/"]):
                     continue
+                # Exige padrão típico de artigo: slug seguido de identificador numérico e .html
+                if not re.search(r"/noticias?/.+_\d+\.html$", full):
+                    continue
                 if full in seen:
                     continue
                 title = a.get_text(strip=True)
@@ -791,15 +800,46 @@ class AgrolinkScraper:
                 )
         if not hero_image:
             return None
-        body = soup.select_one(".content") or soup.select_one(".conteudo") or soup.select_one(".materia") or soup.select_one("article") or soup.select_one("main") or soup
-        paragraphs = [p.get_text(" ", strip=True) for p in body.find_all("p") if p.get_text(strip=True)]
         summary = None
-        for paragraph in paragraphs[:8]:
-            if len(paragraph) > 40:
-                summary = paragraph
+        og_desc = soup.find("meta", property="og:description")
+        tw_desc = soup.find("meta", property="twitter:description")
+        meta_desc = soup.find("meta", attrs={"name": "description"})
+        meta_candidates = [
+            og_desc.get("content") if og_desc and og_desc.get("content") else "",
+            tw_desc.get("content") if tw_desc and tw_desc.get("content") else "",
+            meta_desc.get("content") if meta_desc and meta_desc.get("content") else "",
+        ]
+        for cand in meta_candidates:
+            c = (cand or "").strip()
+            if c and len(c) > 40:
+                summary = c
                 break
         if not summary:
-            summary = paragraphs[0] if paragraphs else title_el.get_text(strip=True)
+            body = soup.select_one(".content") or soup.select_one(".conteudo") or soup.select_one(".materia") or soup.select_one("article") or soup.select_one("main") or soup
+            paragraphs = [p.get_text(" ", strip=True) for p in body.find_all("p") if p.get_text(strip=True)]
+            bad = [
+                "estimado usuário", "estimado usuario", "cadastro", "cadastre-se", "cadastre se",
+                "entrar", "login", "formulário", "formulario", "newsletter", "cookies", "compartilhe",
+            ]
+            for paragraph in paragraphs[:10]:
+                txt = paragraph.strip()
+                low = txt.lower()
+                if any(b in low for b in bad):
+                    continue
+                if len(txt) > 60:
+                    summary = txt
+                    break
+            if not summary:
+                for paragraph in paragraphs:
+                    txt = paragraph.strip()
+                    low = txt.lower()
+                    if any(b in low for b in bad):
+                        continue
+                    if len(txt) > 40:
+                        summary = txt
+                        break
+        if not summary:
+            summary = title_el.get_text(strip=True)
         published_at = None
         meta_pub = soup.find("meta", property="article:published_time") or soup.find("time")
         try:
