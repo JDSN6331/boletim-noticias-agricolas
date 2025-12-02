@@ -1,24 +1,21 @@
 # Boletim Informativo Agrícola
 
-Aplicação web em Flask que monta um painel com as principais notícias agrícolas dos últimos 7 dias, agrupando por temas e com layout responsivo. Inclui uma API para atualização dos dados e um recurso de geração de e‑mail via Outlook (Windows).
+Aplicação web em Flask que monta um painel com as principais notícias agrícolas dos últimos 7 dias, agrupando por temas e com layout responsivo. Inclui uma API para atualização dos dados.
 
 ## Funcionalidades
 - Coleta de notícias dos últimos **7 dias** por tema.
 - Tópicos monitorados: Defensivos Agrícolas, Fertilizantes de Solo, Irrigação, Soja, Milho e Café.
 - Cache de resultados por **15 minutos** para reduzir chamadas.
 - Interface responsiva com cards e cores por tema.
-- Endpoint para geração de HTML e envio via Outlook (Windows).
 
 ## Stack
 - Backend: `Flask`, `requests`, `beautifulsoup4`, `lxml`.
 - Frontend: HTML + CSS + JS (vanilla).
-- Sistema operacional alvo: Windows (para envio de e‑mail via Outlook).
 
 ## Requisitos
 - Python 3.10+
 - Pacotes do `requirements.txt`:
   - Flask, requests, beautifulsoup4, lxml, python-dateutil
-  - `pywin32` (apenas em Windows, para envio de e‑mail via Outlook)
   - Opcional: `tzdata` (se o Windows não tiver base de fusos horários)
 
 ## Instalação
@@ -44,7 +41,6 @@ Abra `http://127.0.0.1:5000` no navegador.
 ## Endpoints
 - `GET /` — Renderiza o dashboard.
 - `GET /api/news` — Retorna as notícias atuais (respeitando o cache). Use `?refresh=true` para forçar atualização.
-- `POST /api/send-email` — Gera HTML e abre um e‑mail no Outlook pronto para envio.
 
 ## Como mudar os temas ou cores
 - Arquivo: `scraper.py`
@@ -58,9 +54,6 @@ Abra `http://127.0.0.1:5000` no navegador.
   - Slugs utilizados: `agronegocio` (Defensivos/Fertilizantes/Irrigação), `soja`, `milho`, `cafe`.
 - Páginas de matéria individuais são acessadas a partir dos links das listagens.
 
-## Envio de E‑mail (Windows)
-- Requer Outlook instalado e `pywin32`.
-- O endpoint `POST /api/send-email` abre uma janela de e‑mail com o HTML do painel.
 
 ## Observações
 - Alguns avisos do editor sobre `<script>` em `index.html` são esperados, pois o template Jinja injeta dados do backend e só se tornam JS válido depois da renderização.

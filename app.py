@@ -2,8 +2,10 @@ from datetime import datetime, timedelta
 from typing import Dict, List
 import threading
 import time
+import os
+import json
 
-from flask import Flask, jsonify, render_template, request, url_for
+from flask import Flask, jsonify, render_template, request
 
 from config import TIMEZONE
 from scraper import (
@@ -17,9 +19,10 @@ from scraper import (
 )
 
 app = Flask(__name__)
+STATIC_DATA_DIR = os.path.join(app.static_folder or "static", "data")
 
-NEWS_REFRESH_INTERVAL_SECONDS = 60
-QUOTES_REFRESH_INTERVAL_SECONDS = 60
+NEWS_REFRESH_INTERVAL_SECONDS = 300
+QUOTES_REFRESH_INTERVAL_SECONDS = 300
 news_cache: Dict[str, object] = {"articles": [], "generated_at": None}
 quotes_cache: Dict[str, object] = {"quotes": [], "generated_at": None}
 news_lock = threading.Lock()
@@ -53,6 +56,45 @@ def serialize_quote(q: Quote) -> Dict[str, object]:
     }
 
 
+def _ensure_static_data_dir() -> None:
+    try:
+        os.makedirs(STATIC_DATA_DIR, exist_ok=True)
+    except Exception:
+        pass
+
+
+def _write_json(filename: str, payload: Dict[str, object]) -> None:
+    try:
+        _ensure_static_data_dir()
+        path = os.path.join(STATIC_DATA_DIR, filename)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def _export_news_json(articles: List[Article], generated_at: datetime) -> None:
+    try:
+        data = {
+            "generated_at": (generated_at or datetime.now(TIMEZONE)).isoformat(),
+            "articles": [serialize_article(a) for a in articles],
+        }
+        _write_json("news.json", data)
+    except Exception:
+        pass
+
+
+def _export_quotes_json(quotes: List[Quote], generated_at: datetime) -> None:
+    try:
+        data = {
+            "generated_at": (generated_at or datetime.now(TIMEZONE)).isoformat(),
+            "quotes": [serialize_quote(q) for q in quotes],
+        }
+        _write_json("quotes.json", data)
+    except Exception:
+        pass
+
+
 def get_cached_articles(force_refresh: bool = False) -> Dict[str, object]:
     now = datetime.now(TIMEZONE)
     if force_refresh:
@@ -62,6 +104,7 @@ def get_cached_articles(force_refresh: bool = False) -> Dict[str, object]:
             completed = _complete_with_previous_sources(fresh, prev, total=15)
             news_cache["articles"] = completed
             news_cache["generated_at"] = now
+            _export_news_json(news_cache["articles"], news_cache["generated_at"]) 
     return {"articles": news_cache["articles"], "generated_at": news_cache["generated_at"]}
 
 
@@ -71,6 +114,7 @@ def get_cached_quotes(force_refresh: bool = False) -> Dict[str, object]:
         with quotes_lock:
             quotes_cache["quotes"] = fetch_quotes()
             quotes_cache["generated_at"] = now
+            _export_quotes_json(quotes_cache["quotes"], quotes_cache["generated_at"]) 
     return {"quotes": quotes_cache["quotes"], "generated_at": quotes_cache["generated_at"]}
 
 
@@ -80,6 +124,7 @@ def _refresh_news_loop():
             with news_lock:
                 news_cache["articles"] = fetch_dashboard_articles()
                 news_cache["generated_at"] = datetime.now(TIMEZONE)
+                _export_news_json(news_cache["articles"], news_cache["generated_at"]) 
         except Exception:
             pass
         time.sleep(max(1, NEWS_REFRESH_INTERVAL_SECONDS))
@@ -91,6 +136,7 @@ def _refresh_quotes_loop():
             with quotes_lock:
                 quotes_cache["quotes"] = fetch_quotes()
                 quotes_cache["generated_at"] = datetime.now(TIMEZONE)
+                _export_quotes_json(quotes_cache["quotes"], quotes_cache["generated_at"]) 
         except Exception:
             pass
         time.sleep(max(1, QUOTES_REFRESH_INTERVAL_SECONDS))
@@ -111,12 +157,11 @@ def prime_cache_on_startup():
         with news_lock:
             news_cache["articles"] = fast
             news_cache["generated_at"] = now
+            _export_news_json(news_cache["articles"], news_cache["generated_at"]) 
     except Exception:
         pass
     # Prime de cotações em segundo plano para não bloquear primeira renderização
     refresh_quotes_async_once()
-    # Disparar refresh completo em background para enriquecer a página
-    refresh_news_async_once()
 
 
 def refresh_news_async_once():
@@ -125,6 +170,7 @@ def refresh_news_async_once():
             with news_lock:
                 news_cache["articles"] = fetch_dashboard_articles()
                 news_cache["generated_at"] = datetime.now(TIMEZONE)
+                _export_news_json(news_cache["articles"], news_cache["generated_at"]) 
         except Exception:
             pass
     threading.Thread(target=_run, daemon=True).start()
@@ -136,6 +182,7 @@ def refresh_quotes_async_once():
             with quotes_lock:
                 quotes_cache["quotes"] = fetch_quotes()
                 quotes_cache["generated_at"] = datetime.now(TIMEZONE)
+                _export_quotes_json(quotes_cache["quotes"], quotes_cache["generated_at"]) 
         except Exception:
             pass
     threading.Thread(target=_run, daemon=True).start()
@@ -212,14 +259,7 @@ def index():
 
 @app.route("/api/news", methods=["GET"])
 def api_news():
-    if request.args.get("refresh") == "true":
-        if not _has_external_sources():
-            payload = get_cached_articles(force_refresh=True)
-        else:
-            refresh_news_async_once()
-            payload = get_cached_articles()
-    else:
-        payload = get_cached_articles()
+    payload = get_cached_articles()
     articles: List[Article] = payload["articles"]
     articles = (articles[:15] if _has_external_sources() else articles[:9])
 
@@ -233,8 +273,6 @@ def api_news():
 
 @app.route("/api/quotes", methods=["GET"])
 def api_quotes():
-    if request.args.get("refresh") == "true":
-        refresh_quotes_async_once()
     payload = get_cached_quotes()
     quotes: List[Quote] = payload["quotes"]
     return jsonify({
@@ -243,38 +281,6 @@ def api_quotes():
     })
 
 
-@app.route("/api/send-email", methods=["POST"])
-def api_send_email():
-    payload = get_cached_articles(force_refresh=True)
-    generated_at = payload["generated_at"] or datetime.now(TIMEZONE)
-    dashboard_image_url = url_for("static", filename="img/dashboard_email.png", _external=True)
-    email_html = render_template(
-        "email_template.html",
-        generated_at=generated_at,
-        dashboard_image_url=dashboard_image_url,
-    )
-
-    try:
-        send_outlook_email(email_html)
-    except Exception as exc:  # pragma: no cover
-        return jsonify({"status": "error", "message": str(exc)}), 500
-
-    return jsonify({"status": "ok"})
-
-
-def send_outlook_email(html_body: str) -> None:
-    try:
-        import win32com.client  # type: ignore[import-not-found]
-    except ImportError as exc:  # pragma: no cover
-        raise RuntimeError(
-            "pywin32 não está instalado ou o Outlook não está disponível nesta máquina."
-        ) from exc
-
-    outlook = win32com.client.Dispatch("Outlook.Application")
-    mail = outlook.CreateItem(0)
-    mail.Subject = f"Boletim de Notícias Agrícolas - {datetime.now().strftime('%d/%m/%Y')}"
-    mail.HTMLBody = html_body
-    mail.Display()
 
 
 prime_cache_on_startup()

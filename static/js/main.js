@@ -1,7 +1,6 @@
 const cardsGrid = document.getElementById("cards-grid");
 const lastUpdateEl = document.getElementById("last-update");
 const refreshBtn = document.getElementById("refresh-btn");
-const emailBtn = document.getElementById("email-btn");
 const cardTemplate = document.getElementById("card-template");
 const toastEl = document.getElementById("toast");
 const tickerTrack = document.getElementById("ticker-track");
@@ -116,63 +115,32 @@ function hideUpdateStatus() {
   updateStatusEl.classList.remove("show");
 }
 
-async function loadNews(refresh = false) {
-  if (refresh) showUpdateStatus("Atualizando notícias...");
+async function loadNews(force = false) {
+  if (force) showUpdateStatus("Atualizando notícias...");
   setLoadingState(refreshBtn, true, "Atualizando...");
   try {
-    const url = refresh ? "/api/news?refresh=true" : "/api/news";
-    const response = await fetch(url);
+    const response = await fetch("/static/data/news.json", { cache: "no-store" });
     if (!response.ok) {
       throw new Error("Falha ao buscar notícias");
     }
     const data = await response.json();
-    renderCards(data.articles);
-    updateTimestamp(data.generated_at);
+    renderCards(data.articles || []);
+    updateTimestamp(data.generated_at || "");
     showToast("Painel atualizado com sucesso!");
-    if (refresh) {
-      setTimeout(async () => {
-        try {
-          const res = await fetch("/api/news");
-          const payload = await res.json();
-          renderCards(payload.articles);
-          updateTimestamp(payload.generated_at);
-        } catch (_) {}
-        hideUpdateStatus();
-      }, 20000);
-    }
   } catch (error) {
     console.error(error);
     showToast("Não foi possível atualizar as notícias.", "error");
   } finally {
     setLoadingState(refreshBtn, false, "Atualizar Notícias");
-    if (!refresh) hideUpdateStatus();
+    if (force) hideUpdateStatus();
   }
 }
 
-async function sendEmail() {
-  setLoadingState(emailBtn, true, "Gerando HTML...");
-  try {
-    const response = await fetch("/api/send-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    });
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.message || "Erro ao gerar e-mail");
-    }
-    showToast("E-mail aberto no Outlook. Revise e envie!");
-  } catch (error) {
-    console.error(error);
-    showToast(error.message || "Não foi possível gerar o e-mail.", "error");
-  } finally {
-    setLoadingState(emailBtn, false, "Gerar HTML para E-mail");
-  }
-}
 
 async function loadQuotes(force = false) {
   if (force) showUpdateStatus("Atualizando cotações...");
   try {
-    const res = await fetch(`/api/quotes${force ? "?refresh=true" : ""}`);
+    const res = await fetch("/static/data/quotes.json", { cache: "no-store" });
     const data = await res.json();
     renderTicker(data.quotes || []);
   } catch (err) {
@@ -220,11 +188,9 @@ function hydrateInitialState() {
 document.addEventListener("DOMContentLoaded", () => {
   hydrateInitialState();
   loadQuotes(false);
-  loadNews(true);
-  // Atualização automática usando o intervalo configurado
-  setInterval(() => loadNews(true), REFRESH_INTERVAL_SECONDS * 1000);
-  setInterval(() => loadQuotes(true), REFRESH_INTERVAL_SECONDS * 1000);
-  emailBtn.addEventListener("click", sendEmail);
+  loadNews(false);
+  setInterval(() => loadNews(false), REFRESH_INTERVAL_SECONDS * 1000);
+  setInterval(() => loadQuotes(false), REFRESH_INTERVAL_SECONDS * 1000);
 });
 function updateAwaitingLabel(articles) {
   if (!sourcesAwaitEl) return;
