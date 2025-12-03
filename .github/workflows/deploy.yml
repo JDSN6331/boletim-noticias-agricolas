@@ -1,0 +1,33 @@
+name: Deploy para EC2
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH na EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/boletim-noticias-agricolas
+
+            echo ">> Atualizando código"
+            git fetch origin
+            git reset --hard origin/main
+
+            echo ">> Ativando venv e instalando dependências"
+            source venv/bin/activate
+            pip install -r requirements.txt
+
+            echo ">> Reiniciando serviços"
+            sudo systemctl restart boletim
+            sudo systemctl restart nginx
+
+            echo ">> Deploy finalizado com sucesso"
