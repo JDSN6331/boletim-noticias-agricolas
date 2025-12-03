@@ -17,6 +17,10 @@ const DATETIME_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
   timeStyle: "short",
   timeZone: "America/Sao_Paulo",
 });
+const TIME_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
+  timeStyle: "short",
+  timeZone: "America/Sao_Paulo",
+});
 
 function renderCards(articles) {
   cardsGrid.innerHTML = "";
@@ -64,7 +68,8 @@ function formatDateLabel(dateStr) {
 
 function updateTimestamp(isoString) {
   if (!isoString) return;
-  lastUpdateEl.textContent = DATETIME_FORMATTER.format(new Date(isoString));
+  const d = new Date(isoString);
+  lastUpdateEl.textContent = `${DATE_FORMATTER.format(d)} às ${TIME_FORMATTER.format(d)}`;
 }
 
 function renderTicker(quotes) {
@@ -99,7 +104,7 @@ function renderTicker(quotes) {
   const trackWidth = tickerTrack.scrollWidth;
   const viewportWidth = window.innerWidth;
   const totalDistance = trackWidth + viewportWidth;
-  const durationSec = Math.round(totalDistance / 80);
+  const durationSec = Math.round(totalDistance / 60);
   tickerTrack.style.setProperty("--track-width", `${trackWidth}px`);
   tickerTrack.style.setProperty("--marquee-duration", `${durationSec}s`);
 }
